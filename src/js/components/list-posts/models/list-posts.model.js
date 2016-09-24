@@ -4,6 +4,7 @@ function ListPostsModel(PostsApi, MediaApi, $q, SlugsMapModel){
     var model = {
         postsList: null,
         loadPosts: loadPosts,
+        loadFeaturedImages: loadFeaturedImages,
         pageSize: null,
         pageNumber: 1,
         isLoadingPosts: null,
@@ -15,9 +16,41 @@ function ListPostsModel(PostsApi, MediaApi, $q, SlugsMapModel){
 
     function setTotalPostsNumber(totalPostsNumber){
         model.totalPostsNumber = totalPostsNumber;
-    }    
+    } 
 
-    function loadPosts(params, shouldAppendFeaturedImageFromExternal){
+    function loadFeaturedImages(loadedPosts){
+        var postPromises = {
+            appendFeaturedImagesToPostsPromise: appendFeaturedImagesToPostsPromise,
+        };
+
+        function appendFeaturedImagesToPostsPromise(featuredMediaId){
+            var defer = $q.defer();
+
+            var featuredImagesPromise = MediaApi.getMediaById(featuredMediaId);
+            
+            featuredImagesPromise.success(function(result){
+                defer.resolve(result);
+            });
+
+            
+            return defer.promise;
+        }
+
+        for(var i=0; i < loadedPosts.length; i++){
+            postPromises.appendFeaturedImagesToPostsPromise(loadedPosts[i].featured_media).then(function(featuredImagesResult){
+
+                for(var j=0; j < model.postsList.length;j++){
+                    if(model.postsList[j].featured_media === featuredImagesResult.id){
+                        model.postsList[j].featured_image = featuredImagesResult.source_url;
+                    }                
+                }
+            });                        
+        }
+    }   
+
+
+
+    function loadPosts(params, shouldGetFeaturedMediaFromAnotherEndpoint){
         model.isLoadingPosts = true;        
         var defer = $q.defer();
 
@@ -27,7 +60,6 @@ function ListPostsModel(PostsApi, MediaApi, $q, SlugsMapModel){
 
         var postPromises = {
             getAllPostsPromise: getAllPostsPromise,
-            appendFeaturedImagesToPosts: appendFeaturedImagesToPosts
         };
 
         function getAllPostsPromise(){
@@ -41,34 +73,23 @@ function ListPostsModel(PostsApi, MediaApi, $q, SlugsMapModel){
             return defer.promise;
         }
 
-        function appendFeaturedImagesToPosts(){
-            var defer = $q.defer();
-
-            var featuredImagesPromise = MediaApi.getMediaById(4017);
-            featuredImagesPromise.success(function(result){
-                defer.resolve(result);
-            });
-            return defer.promise;
-        }
-
-        postPromises.getAllPostsPromise().then(function(postsResult){
-            model.totalPostsNumber = postsResult.found;
+        postPromises.getAllPostsPromise().then(function(postsResults){
+            model.totalPostsNumber = postsResults.found;
             
-            SlugsMapModel.updateFromPosts(postsResult.posts);            
+            SlugsMapModel.updateFromPosts(postsResults);
 
             if(model.postsList){
-                model.postsList = model.postsList.concat(postsResult.posts);
+                model.postsList = model.postsList.concat(postsResults);
             } else {
-                model.postsList = postsResult.posts;
-            }
+                model.postsList = postsResults;
+            }            
 
             defer.resolve(model.postsList);
 
-            model.isLoadingPosts = false;
+            model.isLoadingPosts = false;            
         });
 
         return defer.promise;
-
         
     }
 }

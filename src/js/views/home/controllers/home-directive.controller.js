@@ -1,6 +1,6 @@
 angular.module('frontpress.views.home').controller('HomeDirectiveController', HomeDirectiveController);
 
-function HomeDirectiveController($stateParams, ListPostsModel, $state, $Frontpress, BlogApi, PageHeadModel, $location, PaginationModel){
+function HomeDirectiveController($stateParams, ListPostsModel, $state, $Frontpress, BlogApi, PageHeadModel, $location, PaginationModel, MediaApi){
     var vc = this;
     vc.vm = ListPostsModel;
     var firstNextPageNumber = 2;
@@ -9,17 +9,17 @@ function HomeDirectiveController($stateParams, ListPostsModel, $state, $Frontpre
 
     var params = {
         pageSize: $Frontpress.pageSize,
-        context: 'embed',
         pageNumber: $stateParams.pageNumber ? $stateParams.pageNumber : 1
     };
 
     var blogInformationPromise = BlogApi.getBlogInformation();
-    var loadPostsPromise = vc.vm.loadPosts(params);
+    var loadPostsPromise = vc.vm.loadPosts(params, true);
 
-    loadPostsPromise.then(function(){
+    loadPostsPromise.then(function(loadedPosts){
         var totalPagesNumber = ListPostsModel.totalPostsNumber / $Frontpress.pageSize;
         PaginationModel.setLastPageNumber(totalPagesNumber);
-        _setPaginationPages(params.pageNumber);        
+        _setPaginationPages(params.pageNumber);   
+        vc.vm.loadFeaturedImages(loadedPosts);
     });
 
     _setPageMetaData();
@@ -28,7 +28,9 @@ function HomeDirectiveController($stateParams, ListPostsModel, $state, $Frontpre
         params.pageNumber++;
         var nextPageNumber = params.pageNumber ? params.pageNumber : firstNextPageNumber;
         var paginationOptions = {notify: false};
-        vc.vm.loadPosts(params);
+        vc.vm.loadPosts(params).then(function(loadedPosts){
+            vc.vm.loadFeaturedImages(loadedPosts);
+        });
         _setPageMetaData();
         _setPaginationPages(params.pageNumber);
         $state.go('home-pagination', {pageNumber: nextPageNumber}, paginationOptions);
